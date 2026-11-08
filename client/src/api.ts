@@ -1,14 +1,20 @@
 // Same-origin, relative API calls. Token lives in localStorage so a refresh keeps the user logged in.
-const TOKEN_KEY = "bloom_token";
+import type { Species } from "./bloom/Plant";
+import { KEYS, storage } from "./lib/storage";
 
 export const tokenStore = {
-  get: () => localStorage.getItem(TOKEN_KEY),
-  set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
-  clear: () => localStorage.removeItem(TOKEN_KEY),
+  get: () => storage.get(KEYS.token),
+  set: (t: string) => storage.set(KEYS.token, t),
+  clear: () => storage.remove(KEYS.token),
 };
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  /** status 0 = network error; code = the server's X-Error-Code (stable, unlike the Hebrew message) */
+  constructor(
+    public status: number,
+    message: string,
+    public code: string | null = null,
+  ) {
     super(message);
   }
 }
@@ -39,7 +45,7 @@ export async function api<T = unknown>(path: string, opts: { method?: string; bo
       tokenStore.clear();
       onUnauthorized();
     }
-    throw new ApiError(res.status, msg);
+    throw new ApiError(res.status, msg, res.headers.get("X-Error-Code"));
   }
   return data as T;
 }
@@ -53,10 +59,8 @@ export type Content = {
   source: string;
   bed: string | null;
   created_at: string;
+  species: Species;
   youtube_id?: string | null;
 };
 
 export const TYPE_LABEL: Record<ContentType, string> = { youtube: "סרטון YouTube", text: "טקסט", web: "דף אינטרנט" };
-
-export const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" });

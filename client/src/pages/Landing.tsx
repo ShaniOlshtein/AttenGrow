@@ -1,11 +1,11 @@
 import { Link } from "react-router-dom";
-import { Logo } from "../App";
-import Plant from "../bloom/Plant";
+import Plant, { FULL_BLOOM } from "../bloom/Plant";
+import { Logo } from "../components/common";
 
 const STEPS = [
   { level: 0, mood: "still" as const, title: "מוסיפים תוכן", text: "סרטון YouTube, טקסט או דף אינטרנט — לפי נושאים (ערוגות)." },
   { level: 5, mood: "grow" as const, title: "לומדים מול המצלמה", text: "המודל רץ בדפדפן בלבד. הצמח גדל רק כשאתם מרוכזים." },
-  { level: 12, mood: "grow" as const, title: "הגינה צומחת", text: "כל סשן נשתל בגינה. כל פריחה מזכה בהפסקה אמיתית." },
+  { level: FULL_BLOOM, mood: "grow" as const, title: "הגינה צומחת", text: "כל סשן נשתל בגינה. כל פריחה מזכה בהפסקה אמיתית." },
 ];
 
 export default function Landing() {

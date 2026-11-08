@@ -4,6 +4,15 @@
 // Video frames and landmarks never leave the browser; only the score is reported.
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import * as ort from "onnxruntime-web/wasm";
+import { KEYS, storage } from "../lib/storage";
+
+// Test-only hooks (set by Playwright, never by the app): pin the model output / capture the input windows.
+declare global {
+  interface Window {
+    __bloomScoreOverride?: number;
+    __bloomWindows?: { w: number; h: number; data: number[] }[];
+  }
+}
 
 export const FPS = 10;
 export const WINDOW = 100;
@@ -55,13 +64,7 @@ export const preloadModels = () => Promise.all([loadLandmarker(), loadModel()]);
 /** The model was trained on landmarks extracted from a face crop (square, 20% margin around the face, 256 px).
  *  Re-express the full-frame landmarks in that crop's coordinate system (equivalent to cropping first).
  *  Experimental (off by default; enable with localStorage bloom_crop=1). On our test video it barely changed the score. */
-const CROP = (() => {
-  try {
-    return localStorage.getItem("bloom_crop") === "1"; // default: raw points, as the assignment specifies
-  } catch {
-    return false;
-  }
-})();
+const CROP = storage.get(KEYS.crop) === "1"; // default: raw points, as the assignment specifies
 export function toFaceCrop(face: { x: number; y: number; z: number }[], W: number, H: number): Float32Array {
   const f = new Float32Array(POINTS * 3);
   if (!CROP) {
@@ -243,7 +246,7 @@ export class FocusEngine {
       const data = new Float32Array(WINDOW * POINTS * 3);
       this.frames.forEach((fr, i) => data.set(fr, i * POINTS * 3));
       const input = new ort.Tensor("float32", data, [1, WINDOW, POINTS, 3]);
-      const dbg = (window as any).__bloomWindows; // debug only (set by tests)
+      const dbg = window.__bloomWindows;
       if (Array.isArray(dbg)) dbg.push({ w: this.video.videoWidth, h: this.video.videoHeight, data: Array.from(data) });
       const ti = performance.now();
       const out = await session.run({ [session.inputNames[0]]: input });
@@ -255,7 +258,7 @@ export class FocusEngine {
       let score = Number((scoreT.data as Float32Array)[0]);
       if (!Number.isFinite(score)) return;
       score = Math.min(1, Math.max(0, score));
-      const forced = (window as any).__bloomScoreOverride; // test-only hook (never set by the app)
+      const forced = window.__bloomScoreOverride;
       if (typeof forced === "number") score = forced;
       if (!this.stopped && this.active && epoch === this.epoch)
         this.ev.onPrediction({
@@ -286,7 +289,3 @@ export class FocusEngine {
     this.setStatus("stopped");
   }
 }
-
-export const scoreColor = (s: number) => (s < 0.4 ? "var(--terra)" : s < 0.7 ? "var(--sun)" : "var(--leaf)");
-export const scoreLabel = (s: number) =>
-  s < 0.15 ? "לא מול המסך" : s < 0.4 ? "לא מרוכז/ת" : s < 0.6 ? "ריכוז נמוך" : s < 0.85 ? "מרוכז/ת" : "מרוכז/ת מאוד";

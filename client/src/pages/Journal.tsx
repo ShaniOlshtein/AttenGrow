@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, fmtDate } from "../api";
-import { scoreColor } from "../focus/engine";
 import { AttentionStrip } from "../bloom/AttentionStrip";
+import { Loading } from "../components/common";
+import { useApi } from "../hooks/useApi";
+import { scoreColor } from "../lib/score";
+import { fmtDate } from "../lib/text";
 
 type Journal = {
   minutes_by_day: { date: string; focused_minutes: number }[];
@@ -38,17 +39,12 @@ function DayBars({ days }: { days: Journal["minutes_by_day"] }) {
 }
 
 export default function JournalPage() {
-  const [j, setJ] = useState<Journal | null>(null);
-  const [badges, setBadges] = useState<Badge[]>([]);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    const tz = new Date().getTimezoneOffset();
-    api<Journal>(`/api/journal?tz_offset=${tz}`).then(setJ).catch((e) => setError((e as Error).message));
-    api<{ badges: Badge[] }>(`/api/badges?tz_offset=${tz}`).then((b) => setBadges(b.badges)).catch(() => {});
-  }, []);
+  const tz = new Date().getTimezoneOffset();
+  const { data: j, error } = useApi<Journal>(`/api/journal?tz_offset=${tz}`);
+  const badges = useApi<{ badges: Badge[] }>(`/api/badges?tz_offset=${tz}`).data?.badges ?? [];
 
   if (error) return <p className="alert error">{error}</p>;
-  if (!j) return <p className="muted">טוען…</p>;
+  if (!j) return <Loading />;
 
   return (
     <div className="stack">

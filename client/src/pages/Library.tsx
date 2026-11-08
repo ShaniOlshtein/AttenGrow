@@ -1,6 +1,9 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, Content, ContentType, fmtDate, TYPE_LABEL } from "../api";
+import { api, Content, ContentType, TYPE_LABEL } from "../api";
+import { FormMessage, Loading } from "../components/common";
+import { useApi } from "../hooks/useApi";
+import { errorMessage, fmtDate } from "../lib/text";
 
 const PLACEHOLDER: Record<ContentType, string> = {
   youtube: "https://www.youtube.com/watch?v=...",
@@ -9,17 +12,11 @@ const PLACEHOLDER: Record<ContentType, string> = {
 };
 
 export default function Library() {
-  const [items, setItems] = useState<Content[] | null>(null);
+  const { data: items, error: loadError, reload } = useApi<Content[]>("/api/content");
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
   const [form, setForm] = useState({ type: "youtube" as ContentType, title: "", source: "", bed: "" });
   const [busy, setBusy] = useState(false);
-
-  const load = () =>
-    api<Content[]>("/api/content").then(setItems).catch((e) => setError((e as Error).message));
-  useEffect(() => {
-    load();
-  }, []);
 
   const add = async (e: FormEvent) => {
     e.preventDefault();
@@ -31,9 +28,9 @@ export default function Library() {
       await api("/api/content", { method: "POST", body: { ...form, bed: form.bed || null } });
       setForm({ ...form, title: "", source: "" });
       setMsg("התוכן נוסף לספרייה 🌱");
-      load();
+      reload();
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -44,9 +41,9 @@ export default function Library() {
     try {
       await api(`/api/content/${c.id}`, { method: "DELETE" });
       setMsg("התוכן נמחק");
-      load();
+      reload();
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     }
   };
 
@@ -54,8 +51,9 @@ export default function Library() {
     <div className="grid-2">
       <section className="card">
         <h1>הספרייה שלי</h1>
+        {loadError && <p className="alert error">{loadError}</p>}
         {items === null ? (
-          <p className="muted">טוען…</p>
+          !loadError && <Loading />
         ) : items.length === 0 ? (
           <p className="empty">הספרייה עוד ריקה. הוסיפו תוכן ראשון בטופס — וזרעו את הצמח הראשון 🌱</p>
         ) : (
@@ -87,9 +85,9 @@ export default function Library() {
           <label>
             סוג
             <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as ContentType })}>
-              <option value="youtube">סרטון YouTube</option>
-              <option value="text">טקסט</option>
-              <option value="web">דף אינטרנט</option>
+              {(Object.keys(TYPE_LABEL) as ContentType[]).map((t) => (
+                <option key={t} value={t}>{TYPE_LABEL[t]}</option>
+              ))}
             </select>
           </label>
           <label>
@@ -110,8 +108,8 @@ export default function Library() {
               {[...new Set((items ?? []).map((c) => c.bed).filter(Boolean))].map((b) => <option key={b!} value={b!} />)}
             </datalist>
           </label>
-          {error && <p className="alert error" role="alert">{error}</p>}
-          {msg && <p className="alert ok" role="status">{msg}</p>}
+          <FormMessage kind="error" text={error} />
+          <FormMessage kind="ok" text={msg} />
           <button className="btn big" disabled={busy}>{busy ? "מוסיף…" : "הוספת תוכן"}</button>
         </form>
       </section>

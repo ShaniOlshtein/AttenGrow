@@ -1,7 +1,9 @@
 import { FormEvent, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
-import { Logo } from "../App";
+import { Logo } from "../components/common";
+import { KEYS, storage } from "../lib/storage";
+import { errorMessage, safeRedirect } from "../lib/text";
 
 export default function Login() {
   const { login } = useAuth();
@@ -18,11 +20,11 @@ export default function Login() {
     setBusy(true);
     try {
       await login(email.trim(), password);
-      const from = loc.state?.from ?? sessionStorage.getItem("bloom_from") ?? "/library";
-      sessionStorage.removeItem("bloom_from");
+      const from = safeRedirect(loc.state?.from ?? storage.get(KEYS.returnTo, "session"));
+      storage.remove(KEYS.returnTo, "session");
       nav(from, { replace: true });
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }

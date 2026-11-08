@@ -2,7 +2,8 @@ import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, tokenStore, User } from "../api";
 import { useAuth } from "../auth";
-import { passwordHint } from "./Register";
+import { FormMessage } from "../components/common";
+import { errorMessage, passwordHint } from "../lib/text";
 
 export default function Profile() {
   const { user, refresh, logout } = useAuth();
@@ -19,7 +20,7 @@ export default function Profile() {
       await refresh();
       setMsg({ kind: "ok", text: "שם התצוגה עודכן", where: "name" });
     } catch (err) {
-      setMsg({ kind: "error", text: (err as Error).message, where: "name" });
+      setMsg({ kind: "error", text: errorMessage(err), where: "name" });
     }
   };
 
@@ -28,12 +29,12 @@ export default function Profile() {
     if (pw.new_password.length < 8) return setMsg({ kind: "error", text: "הסיסמה החדשה חייבת להכיל לפחות 8 תווים", where: "pw" });
     try {
       await api("/api/users/me/password", { method: "POST", body: pw });
-      // all old tokens are now invalid -> log in again
+      // all old tokens are now invalid -> log in again (clear first: the logout call must not trigger the 401 handler)
       tokenStore.clear();
       await logout();
       nav("/login", { replace: true, state: { registered: user?.email } });
     } catch (err) {
-      setMsg({ kind: "error", text: (err as Error).message, where: "pw" });
+      setMsg({ kind: "error", text: errorMessage(err), where: "pw" });
     }
   };
 
@@ -45,12 +46,11 @@ export default function Profile() {
       await logout();
       nav("/", { replace: true });
     } catch (err) {
-      setMsg({ kind: "error", text: (err as Error).message, where: "del" });
+      setMsg({ kind: "error", text: errorMessage(err), where: "del" });
     }
   };
 
-  const Msg = ({ where }: { where: string }) =>
-    msg?.where === where ? <p className={`alert ${msg.kind}`} role={msg.kind === "error" ? "alert" : "status"}>{msg.text}</p> : null;
+  const msgFor = (where: string) => (msg?.where === where ? <FormMessage kind={msg.kind} text={msg.text} /> : null);
 
   return (
     <div className="stack narrow">
@@ -59,7 +59,7 @@ export default function Profile() {
       <form className="card stack" onSubmit={saveName}>
         <h2>שם תצוגה</h2>
         <label>שם תצוגה<input value={name} maxLength={50} onChange={(e) => setName(e.target.value)} /></label>
-        <Msg where="name" />
+        {msgFor("name")}
         <button className="btn">שמירת שם</button>
       </form>
       <form className="card stack" onSubmit={changePw}>
@@ -70,14 +70,14 @@ export default function Profile() {
           onChange={(e) => setPw({ ...pw, new_password: e.target.value })} />
           <small className="muted">{passwordHint(pw.new_password)}</small></label>
         <p className="muted small">אחרי שינוי הסיסמה תתבקשו להתחבר מחדש בכל המכשירים.</p>
-        <Msg where="pw" />
+        {msgFor("pw")}
         <button className="btn">שינוי סיסמה</button>
       </form>
       <section className="card stack danger-zone">
         <h2>מחיקת חשבון</h2>
         <p>המחיקה סופית: כל התוכן, הסשנים, המדידות והגינה יימחקו ולא ניתן לשחזר.</p>
         <label>כדי לאשר, הקלידו <strong>מחק</strong><input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} /></label>
-        <Msg where="del" />
+        {msgFor("del")}
         <button className="btn danger" disabled={confirmText !== "מחק"} onClick={deleteAccount}>מחיקת החשבון לצמיתות</button>
       </section>
     </div>

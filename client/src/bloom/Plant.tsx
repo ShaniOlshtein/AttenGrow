@@ -12,13 +12,8 @@ export const STAGE_NAME: Record<string, string> = {
 };
 export const SPECIES_NAME: Record<Species, string> = { sunflower: "חמנייה", fern: "שרך", cactus: "קקטוס" };
 
-/** flower color by average score */
-export function flowerColor(avg: number | null | undefined) {
-  if (avg == null) return "#e8b4c8";
-  if (avg >= 0.7) return "#f2c14e";
-  if (avg >= 0.5) return "#ef8a62";
-  return "#b39ddb";
-}
+/** level of a fully bloomed plant (the server's BLOOM_LEVEL) */
+export const FULL_BLOOM = 12;
 
 type Props = {
   level: number;
@@ -33,9 +28,9 @@ type Props = {
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
-/** level may be fractional (0..12): the plant grows continuously, not in jumps. */
+/** level may be fractional (0..FULL_BLOOM): the plant grows continuously, not in jumps. */
 export default function Plant({ level, species = "sunflower", mood = "still", color = "#f2c14e", size = 160, reviving, label, pot = true }: Props) {
-  const lv = Math.max(0, Math.min(12, level));
+  const lv = Math.max(0, Math.min(FULL_BLOOM, level));
   const baseY = pot ? 122 : 156;
   // stem: sprouts during the first level, then ~6.5 px per level (up to ~92 px)
   const stemH = lv < 0.15 ? 0 : 18 * clamp01(lv) + Math.max(0, lv - 1) * 6.4;
@@ -45,8 +40,8 @@ export default function Plant({ level, species = "sunflower", mood = "still", co
   const topX = 60 + bend;
   const leafColor = mood === "sleep" ? "#93a58c" : droop ? "#9db57a" : "#6aa35c";
   const stemColor = mood === "sleep" ? "#7f9278" : "#4f7d4a";
-  const budGrow = clamp01((lv - 7) / 5); // bud swells from level 7 to 12
-  const showFlower = lv >= 12;
+  const budGrow = clamp01((lv - 7) / (FULL_BLOOM - 7)); // bud swells from level 7 to full bloom
+  const showFlower = lv >= FULL_BLOOM;
   const cls = `plant mood-${mood}${reviving ? " reviving" : ""}${pot ? "" : " natural"}`;
 
   // leaf k appears at level 1 + 2k and unfolds over ~1.5 levels

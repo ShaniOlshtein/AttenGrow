@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, Content, TYPE_LABEL } from "../api";
+import { KEYS, storage } from "../lib/storage";
+import { errorMessage } from "../lib/text";
 
 export default function RoomJoin() {
-  const { code = "" } = useParams();
+  const { code: rawCode = "" } = useParams();
+  const code = rawCode.toUpperCase();
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState("");
   const [items, setItems] = useState<Content[] | null>(null);
@@ -16,8 +19,8 @@ export default function RoomJoin() {
 
   useEffect(() => {
     if (joined) {
-      sessionStorage.setItem("bloom_room", code.toUpperCase());
-      api<Content[]>("/api/content").then(setItems).catch((e) => setError((e as Error).message));
+      storage.set(KEYS.room, code, "session");
+      api<Content[]>("/api/content").then(setItems).catch((e) => setError(errorMessage(e)));
     }
   }, [joined, code]);
 
@@ -28,7 +31,7 @@ export default function RoomJoin() {
       await api(`/api/rooms/${code}/join`, { method: "POST", body: { consent: true } });
       setJoined(true);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -39,7 +42,7 @@ export default function RoomJoin() {
       <h1>לומדים ביחד 🤝</h1>
       {!joined ? (
         <section className="card stack">
-          <p>הוזמנת ללמוד בחדר <strong dir="ltr">{code.toUpperCase()}</strong>. כל אחד לומד את התוכן שלו ורואה את הצמח של החברים גדל.</p>
+          <p>הוזמנת ללמוד בחדר <strong dir="ltr">{code}</strong>. כל אחד לומד את התוכן שלו ורואה את הצמח של החברים גדל.</p>
           <p className="alert warn">
             🔒 רק שם התצוגה, ציון הריכוז ושלב הצמח משותפים — בלי וידאו ובלי נקודות פנים. אפשר לצאת מהחדר בכל רגע.
           </p>
@@ -59,11 +62,11 @@ export default function RoomJoin() {
             <ul className="list" aria-label="בחירת תוכן ללמידה בחדר">
               {items.map((c) => (
                 <li key={c.id} className="item">
-                  <Link className="item-main" to={`/content/${c.id}?room=${code.toUpperCase()}`}>
+                  <Link className="item-main" to={`/content/${c.id}?room=${code}`}>
                     <strong>{c.title}</strong>
                     <span className="muted small">{TYPE_LABEL[c.type]}</span>
                   </Link>
-                  <Link className="btn small" to={`/content/${c.id}?room=${code.toUpperCase()}`}>ללמוד בחדר</Link>
+                  <Link className="btn small" to={`/content/${c.id}?room=${code}`}>ללמוד בחדר</Link>
                 </li>
               ))}
             </ul>

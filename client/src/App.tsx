@@ -1,25 +1,23 @@
-import { ReactNode } from "react";
-import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { lazy, ReactNode, Suspense, useEffect } from "react";
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth";
+import { Logo, NotFound } from "./components/common";
+import { KEYS, storage } from "./lib/storage";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Library from "./pages/Library";
-import ContentView from "./pages/ContentView";
-import { HistoryDetail } from "./pages/History";
-import Garden from "./pages/Garden";
-import JournalPage from "./pages/Journal";
-import Profile from "./pages/Profile";
-import RoomJoin from "./pages/RoomJoin";
 
-export function Logo() {
-  return (
-    <Link to="/" className="brand" aria-label="פורחים - דף הבית">
-      <img src="/logo.svg" alt="" width={36} height={36} />
-      <span>פורחים</span>
-    </Link>
-  );
-}
+// Logged-in screens load on demand: the watch screen pulls in MediaPipe + onnxruntime,
+// which the landing / login pages never need.
+const Library = lazy(() => import("./pages/Library"));
+const ContentView = lazy(() => import("./pages/ContentView"));
+const HistoryDetail = lazy(() => import("./pages/History").then((m) => ({ default: m.HistoryDetail })));
+const Garden = lazy(() => import("./pages/Garden"));
+const JournalPage = lazy(() => import("./pages/Journal"));
+const Profile = lazy(() => import("./pages/Profile"));
+const RoomJoin = lazy(() => import("./pages/RoomJoin"));
+
+const Spinner = () => <div className="center muted">טוען…</div>;
 
 function Shell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
@@ -35,7 +33,9 @@ function Shell({ children }: { children: ReactNode }) {
           <NavLink to="/profile">פרופיל</NavLink>
         </nav>
         <div className="userbox">
-          <span className="hello" data-testid="display-name">שלום, {user?.display_name}</span>
+          <span className="hello" data-testid="display-name">
+            שלום, {user?.display_name}
+          </span>
           <button
             className="btn ghost"
             onClick={async () => {
@@ -47,7 +47,9 @@ function Shell({ children }: { children: ReactNode }) {
           </button>
         </div>
       </header>
-      <main className="page">{children}</main>
+      <main className="page">
+        <Suspense fallback={<Spinner />}>{children}</Suspense>
+      </main>
     </>
   );
 }
@@ -55,28 +57,20 @@ function Shell({ children }: { children: ReactNode }) {
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const loc = useLocation();
-  if (loading) return <div className="center muted">טוען…</div>;
-  if (!user) {
-    sessionStorage.setItem("bloom_from", loc.pathname + loc.search); // come back here after login/registration
-    return <Navigate to="/login" replace state={{ from: loc.pathname + loc.search }} />;
-  }
+  const here = loc.pathname + loc.search;
+  const mustLogin = !loading && !user;
+  useEffect(() => {
+    if (mustLogin) storage.set(KEYS.returnTo, here, "session"); // come back here after login/registration
+  }, [mustLogin, here]);
+  if (loading) return <Spinner />;
+  if (!user) return <Navigate to="/login" replace state={{ from: here }} />;
   return <Shell>{children}</Shell>;
 }
 
 function PublicOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="center muted">טוען…</div>;
+  if (loading) return <Spinner />;
   return user ? <Navigate to="/library" replace /> : <>{children}</>;
-}
-
-export function NotFound() {
-  return (
-    <div className="card center-card">
-      <h1>לא נמצא</h1>
-      <p className="muted">הדף או הפריט שחיפשת לא קיים, או שאין לך הרשאה אליו.</p>
-      <Link className="btn" to="/library">חזרה לספרייה</Link>
-    </div>
-  );
 }
 
 export default function App() {

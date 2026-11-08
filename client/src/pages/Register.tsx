@@ -1,14 +1,8 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
-import { Logo } from "../App";
-
-export function passwordHint(p: string) {
-  if (!p) return "";
-  if (p.length < 8) return `סיסמה קצרה מדי — לפחות 8 תווים (עכשיו ${p.length})`;
-  const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((r) => r.test(p)).length;
-  return kinds >= 3 && p.length >= 12 ? "סיסמה חזקה 💪" : "טיפ: סיסמה ארוכה עם אותיות, ספרות וסימנים חזקה יותר";
-}
+import { Logo } from "../components/common";
+import { errorMessage, passwordHint } from "../lib/text";
 
 export default function Register() {
   const nav = useNavigate();
@@ -29,7 +23,7 @@ export default function Register() {
       await api("/api/auth/register", { method: "POST", body: { ...form, email: form.email.trim() } });
       nav("/login", { state: { registered: form.email.trim() } });
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }

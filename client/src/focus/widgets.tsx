@@ -1,6 +1,12 @@
-import { scoreColor, scoreLabel } from "./engine";
+import { useEffect } from "react";
+import { GOOD_SCORE, LOW_SCORE, scoreColor, scoreLabel } from "../lib/score";
 
 export function ConsentDialog({ onAgree, onDecline }: { onAgree: () => void; onDecline: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onDecline();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onDecline]);
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="consent-title">
       <div className="card modal">
@@ -45,11 +51,12 @@ export function ScoreChart({ points, height = 160, labels }: { points: number[];
   const d = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p).toFixed(1)}`).join(" ");
   return (
     <svg className="chart" viewBox={`0 0 ${w} ${height}`} role="img" aria-label="גרף ציון ריכוז לאורך הזמן">
-      {[0.4, 0.7].map((t) => (
-        <line key={t} x1={pad} x2={w - pad} y1={y(t)} y2={y(t)} className="chart-grid" />
+      {[LOW_SCORE, GOOD_SCORE].map((t) => (
+        <g key={t}>
+          <line x1={pad} x2={w - pad} y1={y(t)} y2={y(t)} className="chart-grid" />
+          <text x={w - pad + 4} y={y(t) + 4} className="chart-tick">{t}</text>
+        </g>
       ))}
-      <text x={w - pad + 4} y={y(0.4) + 4} className="chart-tick">0.4</text>
-      <text x={w - pad + 4} y={y(0.7) + 4} className="chart-tick">0.7</text>
       <path d={d} className="chart-line" />
       {points.map((p, i) => (
         <circle key={i} cx={x(i)} cy={y(p)} r={3.5} fill={scoreColor(p)}>

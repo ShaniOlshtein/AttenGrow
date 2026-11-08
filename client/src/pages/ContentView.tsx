@@ -3,13 +3,11 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import RoomPanel from "../bloom/RoomPanel";
 import { EngineStatus } from "../focus/engine";
 import { api, ApiError, Content, TYPE_LABEL } from "../api";
-import { NotFound } from "../App";
+import { Loading, NotFound } from "../components/common";
 import FocusPanel from "../focus/FocusPanel";
-import { Species } from "../bloom/Plant";
+import { KEYS, storage } from "../lib/storage";
 import YouTubePlayer, { PlayerHandle } from "../focus/YouTubePlayer";
 import { INITIAL_PLAYBACK, reducePlayback } from "../focus/playback";
-
-const SPECIES: Record<Content["type"], Species> = { youtube: "sunflower", text: "fern", web: "cactus" };
 
 export default function ContentView() {
   const { id } = useParams();
@@ -20,7 +18,7 @@ export default function ContentView() {
   const reader = useRef<HTMLElement>(null);
   const openedAt = useRef(Date.now());
   const [params, setParams] = useSearchParams();
-  const [room, setRoom] = useState<string | null>(() => params.get("room") ?? sessionStorage.getItem("bloom_room"));
+  const [room, setRoom] = useState<string | null>(() => params.get("room") ?? storage.get(KEYS.room, "session"));
   const [sessionId, setSessionId] = useState<string | null>(null);
   // single source of truth for the video's real state (measurement + growth depend on it)
   const [playback, dispatchPlayback] = useReducer(reducePlayback, INITIAL_PLAYBACK);
@@ -35,12 +33,12 @@ export default function ContentView() {
   }, [isVideo]);
   const [live, setLive] = useState<{ status: EngineStatus; onBreak: boolean }>({ status: "loading", onBreak: false });
   const enterRoom = (code: string) => {
-    sessionStorage.setItem("bloom_room", code);
+    storage.set(KEYS.room, code, "session");
     setRoom(code);
     setParams({ room: code }, { replace: true });
   };
   const leaveRoom = () => {
-    sessionStorage.removeItem("bloom_room");
+    storage.remove(KEYS.room, "session");
     setRoom(null);
     setParams({}, { replace: true });
   };
@@ -64,7 +62,7 @@ export default function ContentView() {
       });
   }, [id]);
 
-  if (status === "loading") return <p className="muted">טוען…</p>;
+  if (status === "loading") return <Loading />;
   if (status === "notfound") return <NotFound />;
   if (status === "error" || !item) return <p className="alert error">{error}</p>;
 
@@ -109,7 +107,7 @@ export default function ContentView() {
           )}
         </section>
         <div className="stack side">
-          <FocusPanel contentId={item.id} species={SPECIES[item.type]} roomCode={room} onSession={setSessionId}
+          <FocusPanel contentId={item.id} species={item.species} roomCode={room} onSession={setSessionId}
             playback={isVideo ? playback : null} onPlayback={dispatchPlayback} manualPlayback={manualPlayback}
             hooks={{
               getPosition,

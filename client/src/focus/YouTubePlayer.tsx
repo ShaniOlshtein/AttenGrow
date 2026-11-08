@@ -2,26 +2,54 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { PlaybackEvent, ytStateToEvent } from "./playback";
 
 /* Minimal YouTube IFrame API wrapper: gives currentTime (reading position) and pause/play. */
+// The small part of the IFrame API we use (https://developers.google.com/youtube/iframe_api_reference)
+type YTPlayer = {
+  getCurrentTime(): number;
+  getPlayerState(): number;
+  pauseVideo(): void;
+  playVideo(): void;
+  destroy(): void;
+  getIframe(): HTMLIFrameElement | null;
+  getVideoData?(): { video_id?: string };
+};
+type YTEvent = { target: YTPlayer; data: number };
+type YTApi = {
+  Player: new (
+    el: HTMLElement,
+    opts: {
+      videoId: string;
+      host: string;
+      playerVars: Record<string, number>;
+      events: { onReady: (e: YTEvent) => void; onStateChange: (e: YTEvent) => void; onError: () => void };
+    },
+  ) => YTPlayer;
+};
+
 declare global {
   interface Window {
-    YT?: any;
+    YT?: YTApi;
     onYouTubeIframeAPIReady?: () => void;
   }
 }
 
-let apiP: Promise<any> | null = null;
-function loadApi(): Promise<any> {
+const API_TIMEOUT_MS = 8000;
+let apiP: Promise<YTApi> | null = null;
+function loadApi(): Promise<YTApi> {
   if (window.YT?.Player) return Promise.resolve(window.YT);
-  apiP ??= new Promise((resolve, reject) => {
-    window.setTimeout(() => reject(new Error("timeout")), 8000);
+  apiP ??= new Promise<YTApi>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("timeout")), API_TIMEOUT_MS);
     const prev = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
       prev?.();
-      resolve(window.YT);
+      window.clearTimeout(timer);
+      resolve(window.YT!);
     };
     const s = document.createElement("script");
     s.src = "https://www.youtube.com/iframe_api";
-    s.onerror = () => reject(new Error("blocked"));
+    s.onerror = () => {
+      window.clearTimeout(timer);
+      reject(new Error("blocked"));
+    };
     document.head.appendChild(s);
   });
   apiP.catch(() => (apiP = null));
@@ -39,7 +67,7 @@ type Props = {
 
 export default forwardRef<PlayerHandle, Props>(function YouTubePlayer({ videoId, title, onEvent, onFallback }, ref) {
   const host = useRef<HTMLDivElement>(null);
-  const player = useRef<any>(null);
+  const player = useRef<YTPlayer | null>(null);
   const [fallback, setFallback] = useState(false); // API script blocked -> plain embed, position = elapsed time
   const shownAt = useRef(Date.now());
   const cb = useRef({ onEvent, onFallback });
@@ -58,8 +86,8 @@ export default forwardRef<PlayerHandle, Props>(function YouTubePlayer({ videoId,
         host: "https://www.youtube-nocookie.com",
         playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
         events: {
-          onReady: (e: any) => e.target.getIframe()?.setAttribute("title", title),
-          onStateChange: (e: any) => {
+          onReady: (e) => e.target.getIframe()?.setAttribute("title", title),
+          onStateChange: (e) => {
             // a different video in the player (e.g. a suggestion clicked) is not this session's content
             const vid = e.target.getVideoData?.()?.video_id;
             if (vid) {

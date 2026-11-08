@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
+import { useFlash } from "../hooks/useFlash";
+import { errorMessage } from "../lib/text";
 import Plant, { Mood, STAGE_NAME } from "./Plant";
 
 export type Member = {
@@ -17,6 +19,10 @@ type Room = { code: string; members: Member[]; cheers: { id: string; from: strin
 export type MyState = { sessionId: string | null; status: string; onBreak: boolean };
 
 const POLL_MS = 3000;
+const ROOM_TTL_HOURS = 4; // mirrors ROOM_TTL_HOURS in server/app/config.py
+const SUN_MS = 3500;
+const NOTE_MS = 2500;
+const COPIED_MS = 2000;
 const MOOD: Record<Member["status"], Mood> = { focused: "grow", needs_cheer: "droop", away: "sleep", break: "still", idle: "still" };
 
 export default function RoomPanel({ code, me, onCreated, onLeft }: {
@@ -27,9 +33,9 @@ export default function RoomPanel({ code, me, onCreated, onLeft }: {
 }) {
   const [room, setRoom] = useState<Room | null>(null);
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [sun, setSun] = useState<string | null>(null);
-  const [cheerMsg, setCheerMsg] = useState("");
+  const [copied, flashCopied] = useFlash(COPIED_MS, false);
+  const [sun, flashSun] = useFlash<string | null>(SUN_MS, null);
+  const [cheerMsg, flashCheerMsg] = useFlash(NOTE_MS, "");
   const seen = useRef(new Set<string>());
   const lastPresence = useRef("");
 
@@ -45,14 +51,11 @@ export default function RoomPanel({ code, me, onCreated, onLeft }: {
         setError("");
         const fresh = r.cheers.filter((c) => !seen.current.has(c.id));
         fresh.forEach((c) => seen.current.add(c.id));
-        if (fresh.length) {
-          setSun(fresh[fresh.length - 1].from);
-          window.setTimeout(() => setSun(null), 3500);
-        }
+        if (fresh.length) flashSun(fresh[fresh.length - 1].from);
       } catch (e) {
         if (!alive) return;
         if ((e as ApiError).status === 404) {
-          setError("החדר לא קיים יותר (אולי פג תוקפו אחרי 4 שעות ללא פעילות).");
+          setError(`החדר לא קיים יותר (אולי פג תוקפו אחרי ${ROOM_TTL_HOURS} שעות ללא פעילות).`);
           setRoom(null);
           onLeft();
         }
@@ -64,7 +67,7 @@ export default function RoomPanel({ code, me, onCreated, onLeft }: {
       alive = false;
       clearInterval(t);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restart polling only when the room changes
   }, [code]);
 
   // tell the room about states the server can't see from readings (no face / on a break / not started)
@@ -84,7 +87,7 @@ export default function RoomPanel({ code, me, onCreated, onLeft }: {
       setRoom(r);
       onCreated(r.code);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     }
   };
 
@@ -98,19 +101,17 @@ export default function RoomPanel({ code, me, onCreated, onLeft }: {
   const cheer = async () => {
     try {
       await api(`/api/rooms/${code}/cheer`, { method: "POST" });
-      setCheerMsg("העידוד נשלח ☀️");
+      flashCheerMsg("העידוד נשלח ☀️");
     } catch (e) {
-      setCheerMsg((e as Error).message);
+      flashCheerMsg(errorMessage(e));
     }
-    window.setTimeout(() => setCheerMsg(""), 2500);
   };
 
   const link = code ? `${location.origin}/room/${code}` : "";
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(link);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
+      flashCopied(true);
     } catch {
       /* clipboard blocked - the link is visible anyway */
     }
@@ -150,8 +151,8 @@ export default function RoomPanel({ code, me, onCreated, onLeft }: {
         <p className="muted small">מחכים שחבר/ה יצטרף/תצטרף דרך הקישור…</p>
       ) : (
         <ul className="buddies" aria-label="חברים בחדר">
-          {others.map((m) => (
-            <li key={m.display_name + m.updated_at.slice(0, 10)} className={`buddy st-${m.status}`} data-testid="buddy">
+          {others.map((m, i) => (
+            <li key={`${i}-${m.display_name}`} className={`buddy st-${m.status}`} data-testid="buddy">
               <Plant level={m.level_exact ?? m.level} mood={MOOD[m.status]} size={64} label={`הצמח של ${m.display_name}`} />
               <div className="buddy-info">
                 <strong>{m.display_name}</strong>

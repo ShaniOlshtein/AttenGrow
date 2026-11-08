@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field, model_validator
 
 from ..db import db, find_owned
+from ..growth import species_of
 from ..security import current_user
 from ..utils import iso, now
 
@@ -54,7 +55,7 @@ class ContentIn(BaseModel):
 
 def content_out(c: dict) -> dict:
     out = {"id": str(c["_id"]), "type": c["type"], "title": c["title"], "source": c["source"],
-           "bed": c.get("bed"), "created_at": iso(c["created_at"])}
+           "bed": c.get("bed"), "created_at": iso(c["created_at"]), "species": species_of(c["type"])}
     if c["type"] == "youtube":
         out["youtube_id"] = youtube_id(c["source"])
     return out
