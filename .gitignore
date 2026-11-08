@@ -20,3 +20,4 @@ e2e/media/*.json
 build/
 e2e/media/restless.y4m
 *.tsbuildinfo
+client/coverage/
