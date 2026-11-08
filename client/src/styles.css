@@ -129,7 +129,7 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, a:focus-visible {
 
 /* ---- watch / session ---- */
 .watch-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); gap: 1.2rem; align-items: start; }
-.session { position: sticky; top: 5rem; }
+.session { position: sticky; top: 5rem; z-index: 1; } /* stays above the room card while scrolling */
 .meter { display: flex; flex-direction: column; gap: 0.4rem; }
 .meter-top { display: flex; align-items: baseline; gap: 0.8rem; }
 .meter-num { font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
