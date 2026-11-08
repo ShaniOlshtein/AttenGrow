@@ -2,12 +2,12 @@ import re
 from typing import Literal
 from urllib.parse import parse_qs, urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field, model_validator
 
-from ..db import db
+from ..db import db, find_owned
 from ..security import current_user
-from ..utils import iso, now, oid
+from ..utils import iso, now
 
 router = APIRouter(prefix="/content", tags=["content"])
 YT_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "www.youtu.be"}
@@ -61,10 +61,7 @@ def content_out(c: dict) -> dict:
 
 
 async def get_owned(content_id: str, user: dict) -> dict:
-    c = await db.content.find_one({"_id": oid(content_id, "התוכן"), "user_id": user["_id"]})
-    if not c:
-        raise HTTPException(404, "התוכן לא נמצא")
-    return c
+    return await find_owned("content", content_id, user, "התוכן")
 
 
 @router.post("", status_code=201)

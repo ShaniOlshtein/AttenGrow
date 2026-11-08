@@ -1,15 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import config
-from ..db import db
-from ..growth import SPECIES, credited_seconds, growth
+from ..db import db, find_owned
+from ..growth import credited_seconds, growth, species_of
 from ..security import current_user
-from ..utils import iso, now, oid
+from ..services.rooms import norm as norm_room
+from ..services.rooms import on_reading
+from ..utils import http_error, iso, now
 from .content import get_owned
-from .rooms import norm as norm_room, on_reading
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+
+
+def session_ended() -> HTTPException:
+    return http_error(409, "הסשן כבר הסתיים", "session_ended")
+
+
+def session_paused() -> HTTPException:
+    return http_error(409, "הסרטון לא מתנגן — המדידה מושהית", "session_paused")
 
 
 class SessionIn(BaseModel):
@@ -30,14 +38,11 @@ def summary(s: dict) -> dict:
             "content_type": s.get("content_type"), "bed": s.get("bed"),
             "started_at": iso(s["started_at"]), "ended_at": iso(s.get("ended_at")),
             "reading_count": s.get("reading_count", 0), "average_score": s.get("average_score"),
-            "species": SPECIES.get(s.get("content_type"), "fern"), **growth(s.get("focused_seconds", 0))}
+            "species": species_of(s.get("content_type")), **growth(s.get("focused_seconds", 0))}
 
 
 async def get_session(session_id: str, user: dict) -> dict:
-    s = await db.sessions.find_one({"_id": oid(session_id, "הסשן"), "user_id": user["_id"]})
-    if not s:
-        raise HTTPException(404, "הסשן לא נמצא")
-    return s
+    return await find_owned("sessions", session_id, user, "הסשן")
 
 
 @router.post("", status_code=201)
@@ -63,9 +68,9 @@ async def add_reading(session_id: str, body: ReadingIn, user: dict = Depends(cur
     s = await get_session(session_id, user)
     t = now()
     if s.get("ended_at"):
-        raise HTTPException(409, "הסשן כבר הסתיים")
+        raise session_ended()
     if s.get("playing") is False:
-        raise HTTPException(409, "הסרטון לא מתנגן — המדידה מושהית")
+        raise session_paused()
     # time this reading accounts for: only since the video (re)started playing, capped
     focused = credited_seconds(t, s["started_at"], s.get("last_reading_at"), s.get("active_since"), body.score)
     # atomic: only counts while the session is still open and playing
@@ -76,7 +81,7 @@ async def add_reading(session_id: str, body: ReadingIn, user: dict = Depends(cur
         return_document=True)
     if upd is None:  # ended or paused between the read and the update
         cur = await get_session(session_id, user)
-        raise HTTPException(409, "הסשן כבר הסתיים" if cur.get("ended_at") else "הסרטון לא מתנגן — המדידה מושהית")
+        raise session_ended() if cur.get("ended_at") else session_paused()
     r = {"session_id": s["_id"], "user_id": user["_id"], "position": body.position, "score": body.score,
          "created_at": t}
     if body.attention:
@@ -91,7 +96,7 @@ async def set_playing(session_id: str, user: dict, playing: bool) -> dict:
     """Server-side record of whether the content is actually playing (YouTube). Idempotent."""
     s = await get_session(session_id, user)
     if s.get("ended_at"):
-        raise HTTPException(409, "הסשן כבר הסתיים")
+        raise session_ended()
     if playing:  # only a real paused -> playing transition moves active_since
         await db.sessions.update_one({"_id": s["_id"], "ended_at": None, "playing": False},
                                      {"$set": {"playing": True, "active_since": now()}})

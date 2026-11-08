@@ -8,6 +8,12 @@ CURVE = 0.4  # ease-out exponent: fast visible growth at the start, slower towar
 
 STAGES = ["seed", "sprout", "sprout", "leaves", "leaves", "leaves", "leaves", "bud", "bud", "bud", "bud", "bud", "flower"]
 SPECIES = {"youtube": "sunflower", "text": "fern", "web": "cactus"}
+DEFAULT_SPECIES = "fern"
+
+
+def species_of(content_type: str | None) -> str:
+    """Plant species is chosen by the content type (YouTube = sunflower, text = fern, web = cactus)."""
+    return SPECIES.get(content_type or "", DEFAULT_SPECIES)
 
 
 def growth(focused_seconds: float) -> dict:

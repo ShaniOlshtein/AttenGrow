@@ -3,7 +3,8 @@ from datetime import timedelta
 
 import bcrypt
 import jwt
-from fastapi import Depends, HTTPException, Request
+from bson import ObjectId
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import config
@@ -48,14 +49,13 @@ async def current_claims(creds: HTTPAuthorizationCredentials | None = Depends(be
         claims = jwt.decode(creds.credentials, config.JWT_SECRET, algorithms=[config.JWT_ALG],
                             options={"require": ["sub", "jti", "exp", "iat"]})
     except jwt.PyJWTError:
-        raise _unauthorized()
+        raise _unauthorized() from None
     if await db.token_denylist.find_one({"jti": claims["jti"]}):
         raise _unauthorized()
     return claims
 
 
 async def current_user(claims: dict = Depends(current_claims)) -> dict:
-    from bson import ObjectId
     user = await db.users.find_one({"_id": ObjectId(claims["sub"])})
     # token_version changes on password change -> older tokens are rejected
     if not user or user.get("token_version", 0) != claims.get("ver", 0):
@@ -63,7 +63,3 @@ async def current_user(claims: dict = Depends(current_claims)) -> dict:
     user["_claims"] = claims
     return user
 
-
-def client_ip(request: Request) -> str:
-    fwd = request.headers.get("x-forwarded-for")
-    return fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "?")

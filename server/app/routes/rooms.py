@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field
 
 from .. import config
 from ..db import db
-from ..growth import growth
 from ..security import current_user
+from ..services.rooms import norm
 from ..utils import iso, now, oid
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
@@ -20,6 +20,7 @@ ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I
 MAX_MEMBERS = 4
 STALE_SEC = 20  # no reading/presence for this long -> "not in front of the camera"
 CHEER_WINDOW_SEC = 30
+SESSION = "הסשן"
 
 
 class JoinIn(BaseModel):
@@ -32,14 +33,10 @@ class PresenceIn(BaseModel):
     session_id: str | None = Field(default=None, max_length=64)
 
 
-def norm(code: str) -> str:
-    return code.strip().upper()[:12]
-
-
 async def attach_session(session_id: str | None, user: dict, code: str):
     if not session_id:
         return
-    await db.sessions.update_one({"_id": oid(session_id, "הסשן"), "user_id": user["_id"], "ended_at": None},
+    await db.sessions.update_one({"_id": oid(session_id, SESSION), "user_id": user["_id"], "ended_at": None},
                                  {"$set": {"room_code": code}})
 
 
@@ -65,7 +62,7 @@ def status_of(m: dict) -> tuple[str, str]:
     stale = (t - m.get("updated_at", t)).total_seconds() > STALE_SEC
     if m.get("presence") == "noface" or stale or m.get("last_score") is None:
         return "away", "לא מול המצלמה"
-    if m["last_score"] < 0.4:
+    if m["last_score"] < config.LOW_SCORE:
         return "needs_cheer", "צריך/ה עידוד"
     return "focused", "מרוכז/ת"
 
@@ -82,11 +79,14 @@ def room_out(room: dict, user: dict) -> dict:
     cheers = [{"id": c["id"], "from": c["from_name"], "at": iso(c["at"])} for c in room.get("cheers", [])
               if c["to"] == user["_id"] and (t - c["at"]).total_seconds() < CHEER_WINDOW_SEC]
     return {"code": room["code"], "members": members, "cheers": cheers, "max_members": MAX_MEMBERS,
-            "shared_bloom": room.get("shared_bloom", False), "expires_after_hours": 4}
+            "shared_bloom": room.get("shared_bloom", False), "expires_after_hours": config.ROOM_TTL_HOURS}
 
 
 @router.post("", status_code=201)
 async def create(body: JoinIn | None = None, user: dict = Depends(current_user)):
+    session_id = body.session_id if body else None
+    if session_id:
+        oid(session_id, SESSION)  # an invalid id is a 404 *before* anything is created
     for _ in range(10):
         code = "".join(secrets.choice(ALPHABET) for _ in range(6))
         if not await db.rooms.find_one({"code": code}):
@@ -95,7 +95,7 @@ async def create(body: JoinIn | None = None, user: dict = Depends(current_user))
     room = {"code": code, "created_by": user["_id"], "created_at": t, "last_activity": t,
             "members": [new_member(user)], "cheers": [], "shared_bloom": False}
     await db.rooms.insert_one(room)
-    await attach_session(body.session_id if body else None, user, code)
+    await attach_session(session_id, user, code)
     return {**room_out(room, user), "link": f"/room/{code}"}
 
 
@@ -156,40 +156,3 @@ async def cheer(code: str, user: dict = Depends(current_user)):
         await db.rooms.update_one({"_id": room["_id"]}, {"$push": {"cheers": {"$each": cheers, "$slice": -40}},
                                                          "$set": {"last_activity": t}})
     return {"sent": len(cheers)}
-
-
-async def on_reading(session: dict, focused_seconds: float, score: float):
-    """Called by the readings endpoint: the server (not the client) updates the member's plant in the room."""
-    code = session.get("room_code")
-    if not code:
-        return
-    g = growth(focused_seconds)
-    t = now()
-    upd = {"members.$.level": g["level"], "members.$.level_exact": g["level_exact"], "members.$.stage": g["stage"], "members.$.last_score": score,
-           "members.$.updated_at": t, "members.$.presence": "active", "last_activity": t}
-    if g["level"] >= config.BLOOM_LEVEL:
-        upd["members.$.bloomed"] = True
-    await db.rooms.update_one({"code": code, "members.user_id": session["user_id"]}, {"$set": upd})
-    if g["level"] >= config.BLOOM_LEVEL:
-        await check_shared_bloom(code)
-
-
-async def check_shared_bloom(code: str):
-    room = await db.rooms.find_one({"code": code})
-    if not room or room.get("shared_bloom"):
-        return
-    bloomed = [m for m in room["members"] if m.get("bloomed")]
-    if len(bloomed) >= 2 and len(bloomed) == len(room["members"]):
-        res = await db.rooms.update_one({"_id": room["_id"], "shared_bloom": {"$ne": True}}, {"$set": {"shared_bloom": True}})
-        if res.modified_count:  # only one instance creates the joint plant
-            ids = [m["user_id"] for m in bloomed]
-            await db.shared_plants.insert_one({"room_code": code, "user_ids": ids, "names": [m["display_name"] for m in bloomed],
-                                               "created_at": now()})
-            await db.users.update_many({"_id": {"$in": ids}}, {"$set": {"shared_bloom": True}})
-
-
-async def shared_plants_for(user: dict) -> list[dict]:
-    return [{"room_code": p["room_code"], "names": p["names"], "created_at": iso(p["created_at"])}
-            async for p in db.shared_plants.find({"user_ids": user["_id"]}).sort("created_at", -1).limit(50)]
-
-

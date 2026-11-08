@@ -1,5 +1,9 @@
 """Creates ../assignment3.zip with exactly: docker-compose.yml, .env, PROJECT_INFO.docx (no folder)."""
-import os, secrets, subprocess, sys, zipfile
+import os
+import secrets
+import subprocess
+import sys
+import zipfile
 
 here = os.path.dirname(os.path.abspath(__file__))
 root = os.path.dirname(here)

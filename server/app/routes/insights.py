@@ -5,14 +5,16 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Query
 
+from .. import config
 from ..db import db
-from ..growth import SPECIES, growth
+from ..growth import growth, species_of
 from ..security import current_user
+from ..services.rooms import shared_plants_for
 from ..utils import iso, now
-from .rooms import shared_plants_for
 
 router = APIRouter(tags=["bloom"])
 NO_BED = "ללא ערוגה"
+TZ_OFFSET = Query(0, ge=-840, le=840)  # JS getTimezoneOffset(): minutes, UTC - local
 
 
 async def ended_sessions(user: dict, since=None) -> list[dict]:
@@ -25,14 +27,13 @@ async def ended_sessions(user: dict, since=None) -> list[dict]:
 def plant(s: dict) -> dict:
     g = growth(s.get("focused_seconds", 0))
     return {"session_id": str(s["_id"]), "title": s.get("content_title", ""), "content_type": s.get("content_type"),
-            "species": SPECIES.get(s.get("content_type"), "fern"), "bed": s.get("bed") or NO_BED,
+            "species": species_of(s.get("content_type")), "bed": s.get("bed") or NO_BED,
             "started_at": iso(s["started_at"]), "ended_at": iso(s.get("ended_at")),
             "average_score": s.get("average_score"), "reading_count": s.get("reading_count", 0),
             "focused_minutes": round(g["focused_seconds"] / 60, 1), **g}
 
 
 def local_day(dt, tz_offset: int) -> date:
-    # tz_offset = JS getTimezoneOffset() (minutes, UTC - local)
     return (dt - timedelta(minutes=tz_offset)).date()
 
 
@@ -46,7 +47,7 @@ def streak_days(days_with_plant: set[date], today: date) -> int:
 
 
 @router.get("/garden")
-async def garden(user: dict = Depends(current_user)):
+async def garden(tz_offset: int = TZ_OFFSET, user: dict = Depends(current_user)):
     plants = [plant(s) for s in await ended_sessions(user)]
     beds: dict[str, dict] = {}
     for p in plants:
@@ -65,7 +66,7 @@ async def garden(user: dict = Depends(current_user)):
         out.append(b)
     out.sort(key=lambda b: (b["name"] == NO_BED, -b["focused_minutes"]))
     return {"beds": out, "total_plants": len(plants), "flowers": sum(1 for p in plants if p["blooms"] > 0),
-            "shared_plants": await shared_plants_for(user)}
+            "shared_plants": await shared_plants_for(user), "season": season(local_day(now(), tz_offset).month)}
 
 
 def tips(minutes_by_day: list[dict], best_hour, by_bed: list[dict], streak: int, recent_avg, sessions: int) -> list[str]:
@@ -80,25 +81,25 @@ def tips(minutes_by_day: list[dict], best_hour, by_bed: list[dict], streak: int,
         t.append(f"רצף של {streak} ימים! עוד יום אחד והגינה ממשיכה לפרוח.")
     elif streak == 0:
         t.append("היום עוד לא צמח כלום — אפילו 10 דקות מרוכזות שותלות צמח חדש.")
-    weak = [b for b in by_bed if b["average_score"] is not None and b["average_score"] < 0.5]
+    weak = [b for b in by_bed if b["average_score"] is not None and b["average_score"] < config.FOCUS_THRESHOLD]
     if weak:
         t.append(f"בערוגה \"{weak[0]['name']}\" הריכוז נמוך יותר — כדאי לחלק אותה לסשנים קצרים.")
-    if recent_avg is not None and recent_avg >= 0.7:
+    if recent_avg is not None and recent_avg >= config.GOOD_SCORE:
         t.append("הממוצע האחרון שלך גבוה — מגיעה לך הפסקה אמיתית אחרי כל פריחה ☀️")
-    elif recent_avg is not None and recent_avg < 0.4:
+    elif recent_avg is not None and recent_avg < config.LOW_SCORE:
         t.append("הריכוז האחרון נמוך — נסו לסגור התראות בטלפון ולשבת מול המצלמה.")
     return t[:4]
 
 
 @router.get("/journal")
-async def journal(tz_offset: int = Query(0, ge=-840, le=840), user: dict = Depends(current_user)):
+async def journal(tz_offset: int = TZ_OFFSET, user: dict = Depends(current_user)):
     today = local_day(now(), tz_offset)
     sessions = await ended_sessions(user)
     plants = [plant(s) for s in sessions]
 
     by_day = defaultdict(float)
     days_with_plant = set()
-    for s, p in zip(sessions, plants):
+    for s, p in zip(sessions, plants, strict=True):
         d = local_day(s["started_at"], tz_offset)
         by_day[d] += p["focused_minutes"]
         if p["level"] >= 1:
@@ -128,22 +129,28 @@ async def journal(tz_offset: int = Query(0, ge=-840, le=840), user: dict = Depen
     by_bed.sort(key=lambda b: -(b["average_score"] or 0))
 
     # attention strip: average model attention_weights per recent session ("which seconds counted most")
+    recent = list(reversed(sessions[-6:]))
+    totals = {s["_id"]: [0.0] * 100 for s in recent}
+    counts = dict.fromkeys(totals, 0)
+    query = {"session_id": {"$in": list(totals)}, "attention": {"$exists": True}}
+    async for r in db.readings.find(query, {"session_id": 1, "attention": 1}):  # one query, not one per session
+        a = r["attention"]
+        if len(a) == 100:
+            acc = totals[r["session_id"]]
+            for i, x in enumerate(a):
+                acc[i] += x
+            counts[r["session_id"]] += 1
     strips = []
-    for s in reversed(sessions[-6:]):
-        acc, n = [0.0] * 100, 0
-        async for r in db.readings.find({"session_id": s["_id"], "attention": {"$exists": True}}, {"attention": 1}):
-            a = r["attention"]
-            if len(a) == 100:
-                acc = [x + y for x, y in zip(acc, a)]
-                n += 1
-        if n:
+    for s in recent:
+        acc = totals[s["_id"]]
+        if counts[s["_id"]]:
             m = max(acc) or 1
             strips.append({"session_id": str(s["_id"]), "title": s.get("content_title", ""),
                            "started_at": iso(s["started_at"]), "weights": [round(x / m, 3) for x in acc]})
 
     streak = streak_days(days_with_plant, today)
-    recent = [p["average_score"] for p in plants[-5:] if p["average_score"] is not None]
-    recent_avg = sum(recent) / len(recent) if recent else None
+    last_scores = [p["average_score"] for p in plants[-5:] if p["average_score"] is not None]
+    recent_avg = sum(last_scores) / len(last_scores) if last_scores else None
     return {"minutes_by_day": minutes_by_day, "best_hour": best_hour,
             "hour_averages": {str(h): round(v, 3) for h, v in sorted(hour_avg.items())},
             "by_bed": by_bed, "streak": streak, "attention_strips": strips,
@@ -163,11 +170,11 @@ def season(month: int) -> dict:
 
 
 @router.get("/badges")
-async def badges(tz_offset: int = Query(0, ge=-840, le=840), user: dict = Depends(current_user)):
+async def badges(tz_offset: int = TZ_OFFSET, user: dict = Depends(current_user)):
     sessions = await ended_sessions(user)
     plants = [plant(s) for s in sessions]
     today = local_day(now(), tz_offset)
-    days = {local_day(s["started_at"], tz_offset) for s, p in zip(sessions, plants) if p["level"] >= 1}
+    days = {local_day(s["started_at"], tz_offset) for s, p in zip(sessions, plants, strict=True) if p["level"] >= 1}
     bed_counts = defaultdict(int)
     for p in plants:
         if p["bed"] != NO_BED:

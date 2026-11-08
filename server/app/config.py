@@ -16,8 +16,13 @@ JWT_EXPIRES_MIN = 60
 BCRYPT_ROUNDS = 12
 LOGIN_MAX_FAILURES = 5
 LOGIN_WINDOW_SEC = 15 * 60
+ROOM_TTL_HOURS = 4            # a study room expires after this much inactivity
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# ---- Score bands (model output 0..1); the client mirrors them in src/lib/score.ts ----
+LOW_SCORE = 0.4               # below: "needs encouragement" / thirsty plant
+GOOD_SCORE = 0.7              # at or above: well focused
 
 # ---- Bloom growth rules (server is the source of truth for plant stage) ----
 FOCUS_THRESHOLD = 0.5          # score >= this counts as focused time

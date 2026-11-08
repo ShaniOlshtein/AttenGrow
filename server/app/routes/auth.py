@@ -1,43 +1,27 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel, EmailStr, Field
 from pymongo.errors import DuplicateKeyError
 
 from .. import config
 from ..db import db
-from ..security import client_ip, create_token, current_claims, hash_password, verify_password
-from ..utils import iso, now
+from ..schemas import DisplayName, Password
+from ..security import create_token, current_claims, hash_password, verify_password
+from ..utils import now
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-def clean_name(v: str) -> str:
-    v = v.strip()
-    if not v:
-        raise ValueError("שם התצוגה ריק")
-    return v
-
-
 class RegisterIn(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
-    display_name: str = Field(min_length=1, max_length=50)
-
-    @field_validator("display_name")
-    @classmethod
-    def _strip(cls, v: str) -> str:
-        return clean_name(v)
+    password: Password
+    display_name: DisplayName
 
 
 class LoginIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
-
-
-def user_out(u: dict) -> dict:
-    return {"id": str(u["_id"]), "email": u["email"], "display_name": u["display_name"],
-            "created_at": iso(u["created_at"])}
 
 
 @router.post("/register", status_code=201)
@@ -47,16 +31,18 @@ async def register(body: RegisterIn):
     try:
         res = await db.users.insert_one(doc)
     except DuplicateKeyError:
-        raise HTTPException(409, "כתובת האימייל כבר רשומה")
+        raise HTTPException(409, "כתובת האימייל כבר רשומה") from None
     return {"id": str(res.inserted_id), "email": doc["email"], "display_name": doc["display_name"]}
 
 
 @router.post("/login")
-async def login(body: LoginIn, request: Request):
+async def login(body: LoginIn):
     email = body.email.lower()
-    key = f"{email}|{client_ip(request)}"
+    # counted per account, not per IP: X-Forwarded-For is client-controlled, so an IP key could be bypassed
+    key = email
     if await db.login_failures.count_documents({"key": key}) >= config.LOGIN_MAX_FAILURES:
-        raise HTTPException(429, "יותר מדי ניסיונות התחברות שגויים. נסו שוב בעוד 15 דקות")
+        minutes = config.LOGIN_WINDOW_SEC // 60
+        raise HTTPException(429, f"יותר מדי ניסיונות התחברות שגויים. נסו שוב בעוד {minutes} דקות")
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user["password_hash"]):
         await db.login_failures.insert_one({"key": key, "created_at": now()})
@@ -68,7 +54,7 @@ async def login(body: LoginIn, request: Request):
 
 @router.post("/logout", status_code=204)
 async def logout(claims: dict = Depends(current_claims)):
-    exp = datetime.fromtimestamp(claims["exp"], tz=timezone.utc)
+    exp = datetime.fromtimestamp(claims["exp"], tz=UTC)
     await db.token_denylist.update_one({"jti": claims["jti"]},
                                        {"$setOnInsert": {"jti": claims["jti"], "expires_at": exp}}, upsert=True)
     return Response(status_code=204)

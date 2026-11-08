@@ -1,25 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from ..db import db
+from ..schemas import DisplayName, Password, user_out
 from ..security import current_user, hash_password, verify_password
-from .auth import clean_name, user_out
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 class PatchMe(BaseModel):
-    display_name: str = Field(min_length=1, max_length=50)
-
-    @field_validator("display_name")
-    @classmethod
-    def _strip(cls, v: str) -> str:
-        return clean_name(v)
+    display_name: DisplayName
 
 
 class PasswordIn(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
-    new_password: str = Field(min_length=8, max_length=128)
+    new_password: Password
 
 
 @router.get("/me")
