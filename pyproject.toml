@@ -1,0 +1,16 @@
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+src = ["server"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "SIM", "ASYNC"]
+# B008: FastAPI's Depends(...) in argument defaults is the framework's idiom
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+"deliver/*" = ["E501", "SIM115"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

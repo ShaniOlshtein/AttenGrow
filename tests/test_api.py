@@ -107,6 +107,64 @@ def test_delete_account():
     assert requests.post(f"{BASE}/api/auth/login", json={"email": email, "password": "Secret123!"}).status_code == 401
 
 
+def test_delete_account_removes_room_membership():
+    _, a = new_user()
+    _, b = new_user()
+    code = requests.post(f"{BASE}/api/rooms", json={}, headers=a).json()["code"]
+    requests.post(f"{BASE}/api/rooms/{code}/join", json={"consent": True}, headers=b)
+    sid = requests.post(f"{BASE}/api/sessions", json={"content_id": _session(b), "room_code": code}, headers=b).json()["id"]
+    requests.post(f"{BASE}/api/sessions/{sid}/readings", json={"position": 1, "score": 0.9}, headers=b)
+    assert len(requests.get(f"{BASE}/api/rooms/{code}", headers=a).json()["members"]) == 2
+    assert requests.delete(f"{BASE}/api/users/me", headers=b).status_code == 204
+    assert len(requests.get(f"{BASE}/api/rooms/{code}", headers=a).json()["members"]) == 1
+
+
+def test_pause_resume_gate_readings():
+    _, h = new_user()
+    sid = requests.post(f"{BASE}/api/sessions", json={"content_id": _session(h), "playing": False}, headers=h).json()["id"]
+    reading = {"position": 1, "score": 0.9}
+    assert requests.post(f"{BASE}/api/sessions/{sid}/readings", json=reading, headers=h).status_code == 409
+    assert requests.post(f"{BASE}/api/sessions/{sid}/resume", headers=h).json() == {"id": sid, "playing": True}
+    assert requests.post(f"{BASE}/api/sessions/{sid}/resume", headers=h).status_code == 200  # idempotent
+    assert requests.post(f"{BASE}/api/sessions/{sid}/readings", json=reading, headers=h).status_code == 201
+    assert requests.post(f"{BASE}/api/sessions/{sid}/pause", headers=h).status_code == 200
+    assert requests.post(f"{BASE}/api/sessions/{sid}/readings", json=reading, headers=h).status_code == 409
+    requests.post(f"{BASE}/api/sessions/{sid}/end", headers=h)
+    for action in ("pause", "resume"):
+        assert requests.post(f"{BASE}/api/sessions/{sid}/{action}", headers=h).status_code == 409
+    assert requests.post(f"{BASE}/api/sessions/not-an-id/pause", headers=h).status_code == 404
+
+
+def test_error_codes_distinguish_ended_from_paused():
+    _, h = new_user()
+    sid = requests.post(f"{BASE}/api/sessions", json={"content_id": _session(h), "playing": False}, headers=h).json()["id"]
+    r = requests.post(f"{BASE}/api/sessions/{sid}/readings", json={"position": 1, "score": 0.9}, headers=h)
+    assert r.status_code == 409 and r.headers.get("X-Error-Code") == "session_paused"
+    requests.post(f"{BASE}/api/sessions/{sid}/end", headers=h)
+    r = requests.post(f"{BASE}/api/sessions/{sid}/readings", json={"position": 1, "score": 0.9}, headers=h)
+    assert r.status_code == 409 and r.headers.get("X-Error-Code") == "session_ended"
+    assert set(r.json()) == {"detail"}
+
+
+def test_rate_limit_not_bypassed_by_forwarded_for():
+    email, _ = new_user()
+    for i in range(5):
+        requests.post(f"{BASE}/api/auth/login", json={"email": email, "password": "wrongpass"}, headers={"X-Forwarded-For": f"10.0.0.{i}"})
+    r = requests.post(f"{BASE}/api/auth/login", json={"email": email, "password": "wrongpass"}, headers={"X-Forwarded-For": "10.9.9.9"})
+    assert r.status_code == 429
+
+
+def test_validation_messages_are_hebrew():
+    r = requests.post(f"{BASE}/api/auth/register", json={"email": "a@b.co", "password": "short", "display_name": "x"})
+    detail = r.json()["detail"]
+    assert r.status_code == 422 and "8" in detail and not any("a" <= ch.lower() <= "z" for ch in detail), detail
+
+
+def test_room_with_invalid_session_is_not_created():
+    _, h = new_user()
+    assert requests.post(f"{BASE}/api/rooms", json={"session_id": "nope"}, headers=h).status_code == 404
+
+
 def test_growth_garden_journal_badges():
     import time
     _, h = new_user()
