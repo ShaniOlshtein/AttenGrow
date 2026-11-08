@@ -28,9 +28,11 @@ test("full bloom → earned break with countdown, camera off → back to studyin
   );
   expect(cameraLive).toBe(false);
 
+  // back to studying: the camera and the measurement start again
   await page.getByRole("button", { name: "חזרה ללמידה עכשיו" }).click();
   await expect(page.getByTestId("engine-status")).toBeVisible();
-  await expect(page.getByTestId("score")).toHaveText(/\d\.\d\d/, { timeout: 30_000 });
-  await page.getByRole("button", { name: "סיים סשן" }).click();
+  // in fast mode the next full bloom comes within seconds -> a second, fresh break (5 minutes again)
+  await expect(page.getByTestId("break-countdown")).toHaveText(/^(5:00|4:5\d)$/, { timeout: 60_000 });
+  await page.getByRole("button", { name: "סיים סשן" }).click(); // the break box's button (not covered by the room card)
   await expect(page.getByText("הצמח נשתל בגינה")).toBeVisible();
 });
