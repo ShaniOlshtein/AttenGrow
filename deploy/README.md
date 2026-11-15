@@ -43,8 +43,8 @@ printf '%s' 'mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/?retryWrites
 
 ## 5. הרצת הסקריפט
 ```bash
-git clone https://github.com/ShaniOlshtein/Focuse_Flow.git
-cd Focuse_Flow
+git clone https://github.com/ShaniOlshtein/AttenGrow.git
+cd AttenGrow
 GCP_PROJECT_ID=<PROJECT_ID> DOMAIN=attengrow.ddns.net bash deploy/deploy.sh
 ```
 בסוף הסקריפט מדפיס:
