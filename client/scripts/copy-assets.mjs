@@ -1,4 +1,4 @@
-// Copies runtime wasm assets into public/ so they are served same-origin (no CDN at runtime).
+// Copies runtime wasm assets into public/ so they are served same-origin (no CDN at runtime) .
 import { cpSync, mkdirSync, readdirSync } from "node:fs";
 const copy = (from, to, filter) => {
   mkdirSync(to, { recursive: true });
