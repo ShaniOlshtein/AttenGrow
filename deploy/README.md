@@ -3,8 +3,8 @@
 **התוצאה:** `https://<הדומיין>` → Load Balancer של גוגל עם HTTPS. ה-Load Balancer מעביר את `/api/*` ואת `/health` ל-Cloud Run `bloom-server`, וכל השאר ל-Cloud Run `bloom-client`. מסד הנתונים הוא MongoDB Atlas, והסודות שמורים ב-Secret Manager.
 
 **האימג'ים** כבר נמצאים ב-Docker Hub (ציבוריים, linux/amd64), ולא צריך לבנות כלום:
-- `ahuvafogel/bloom-server:1.2`
-- `ahuvafogel/bloom-client:1.2`
+- `ahuvafogel/bloom-server:1.3`
+- `ahuvafogel/bloom-client:1.3`
 
 הסקריפט `deploy/deploy.sh` מבצע את כל השלבים בענן. לפניו צריך לעשות ידנית את שלבים 1–4. אפשר להריץ אותו שוב כמה פעמים שרוצים: מה שכבר קיים נשאר, ומה שהשתנה מתעדכן.
 
@@ -37,7 +37,7 @@ printf '%s' 'mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/?retryWrites
 את `jwt-secret` הסקריפט יוצר לבד, עם ערך אקראי.
 
 ## 4. דומיין ב-No-IP
-1. ב-noip.com יוצרים Hostname חינמי, למשל `bloom-garden.ddns.net`.
+1. ב-noip.com יוצרים Hostname חינמי, למשל `attengrow.ddns.net`.
 2. את רשומת ה-A מעדכנים **אחרי** שהסקריפט מדפיס את ה-IP של ה-Load Balancer (שלב 5).
 3. ⚠️ No-IP שולחים מייל אישור **כל 30 יום**. חייבים ללחוץ עליו, אחרת הדומיין נמחק.
 
@@ -45,12 +45,12 @@ printf '%s' 'mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/?retryWrites
 ```bash
 git clone https://github.com/ShaniOlshtein/Focuse_Flow.git
 cd Focuse_Flow
-GCP_PROJECT_ID=<PROJECT_ID> DOMAIN=bloom-garden.ddns.net bash deploy/deploy.sh
+GCP_PROJECT_ID=<PROJECT_ID> DOMAIN=attengrow.ddns.net bash deploy/deploy.sh
 ```
 בסוף הסקריפט מדפיס:
 - **Load Balancer IP**: אותו מכניסים ב-No-IP כרשומת A, וזו הרשומה **היחידה**.
 - סטטוס התעודה: `PROVISIONING` זה תקין. התעודה מוכנה (`ACTIVE`) עד בערך 60 דקות **אחרי** שה-DNS מצביע על ה-IP.
-- הקובץ `ahuva-shani-michal.json` לתיבת ההגשה. השם שלו זהה ל-`project`.
+- הקובץ `attengrow.json` לתיבת ההגשה. השם שלו זהה ל-`project`.
 
 כך בודקים את סטטוס התעודה:
 ```bash
@@ -65,7 +65,7 @@ gcloud compute ssl-certificates list --format="table(name,managed.status,managed
 
 ## 7. עדכון קובץ ההגשה של מטלה 3 עם הדומיין
 ```bash
-python deliver/make_zip.py https://bloom-garden.ddns.net
+python deliver/make_zip.py https://attengrow.ddns.net
 ```
 הפקודה בונה מחדש את `assignment3.zip`, והדומיין מופיע ב-`setup_notes` של PROJECT_INFO.
 
@@ -86,7 +86,7 @@ gcloud run services logs read bloom-server --region europe-west1 --limit 50
 ```
 
 ### עדכון גרסה בעתיד
-בונים ודוחפים אימג' חדש (`docker buildx build --platform linux/amd64 -t ahuvafogel/bloom-server:1.3 --push ./server`), ואז מריצים שוב:
+בונים ודוחפים אימג' חדש (`docker buildx build --platform linux/amd64 -t ahuvafogel/bloom-server:1.4 --push ./server`), ואז מריצים שוב:
 ```bash
-IMAGE_TAG=1.3 GCP_PROJECT_ID=... DOMAIN=... bash deploy/deploy.sh
+IMAGE_TAG=1.4 GCP_PROJECT_ID=... DOMAIN=... bash deploy/deploy.sh
 ```

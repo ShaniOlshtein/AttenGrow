@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bloom / פורחים - Assignment 4: deploy to Google Cloud.
+# AttenGrow - Assignment 4: deploy to Google Cloud.
 #   https://DOMAIN -> global external HTTPS Load Balancer
 #        /api/*, /health -> Cloud Run "bloom-server" (FastAPI, port 8000)
 #        everything else -> Cloud Run "bloom-client" (nginx + React build, port 3000)
@@ -10,14 +10,14 @@
 set -euo pipefail
 
 # ---------------- variables ----------------
-GCP_PROJECT_ID="${GCP_PROJECT_ID:-}"           # e.g. bloom-garden-123456
+GCP_PROJECT_ID="${GCP_PROJECT_ID:-}"           # e.g. attengrow-123456
 REGION="${REGION:-europe-west1}"
-DOMAIN="${DOMAIN:-}"                           # e.g. bloom-garden.ddns.net (No-IP hostname, no https://)
-IMAGE_TAG="${IMAGE_TAG:-1.2}"
+DOMAIN="${DOMAIN:-}"                           # e.g. attengrow.ddns.net (No-IP hostname, no https://)
+IMAGE_TAG="${IMAGE_TAG:-1.3}"
 SERVER_IMAGE="${SERVER_IMAGE:-docker.io/ahuvafogel/bloom-server:${IMAGE_TAG}}"
 CLIENT_IMAGE="${CLIENT_IMAGE:-docker.io/ahuvafogel/bloom-client:${IMAGE_TAG}}"
 DB_NAME="${DB_NAME:-focusflow}"
-TEAM_ID="${TEAM_ID:-ahuva-shani-michal}"
+TEAM_ID="${TEAM_ID:-attengrow}"
 MEMBERS_JSON='["Shani Olshtein", "Michal David", "Ahuva Fogel"]'
 
 SERVER_SVC=bloom-server
@@ -37,7 +37,7 @@ step() { echo; echo "==> $*"; }
 exists() { "$@" >/dev/null 2>&1; }
 
 [ -n "$GCP_PROJECT_ID" ] || die "set GCP_PROJECT_ID (the project id from the GCP console)"
-[ -n "$DOMAIN" ] || die "set DOMAIN (your No-IP hostname, e.g. bloom-garden.ddns.net)"
+[ -n "$DOMAIN" ] || die "set DOMAIN (your No-IP hostname, e.g. attengrow.ddns.net)"
 DOMAIN="${DOMAIN#https://}"; DOMAIN="${DOMAIN#http://}"; DOMAIN="${DOMAIN%/}"
 command -v gcloud >/dev/null || die "gcloud CLI is not installed"
 gcloud auth list --filter=status:ACTIVE --format="value(account)" | grep -q . || die "run: gcloud auth login"
@@ -64,7 +64,7 @@ exists gcloud secrets versions access latest --secret=mongodb-uri || die "mongod
 
 step "Service account for Cloud Run + secretAccessor"
 exists gcloud iam service-accounts describe "$RUN_SA" || \
-  gcloud iam service-accounts create "$RUN_SA_NAME" --display-name="Bloom Cloud Run runtime"
+  gcloud iam service-accounts create "$RUN_SA_NAME" --display-name="AttenGrow Cloud Run runtime"
 for s in mongodb-uri jwt-secret; do
   gcloud secrets add-iam-policy-binding "$s" --member="serviceAccount:${RUN_SA}" \
     --role=roles/secretmanager.secretAccessor --condition=None >/dev/null

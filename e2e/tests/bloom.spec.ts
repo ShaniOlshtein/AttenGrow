@@ -6,7 +6,7 @@ const shot = (name: string) => `screens/${name}.png`;
 
 test("landing page has 3 steps and big buttons", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "פורחים" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "AttenGrow" })).toBeVisible();
   await expect(page.getByText("תתרכזו — ותראו מה צומח")).toBeVisible();
   await expect(page.locator(".step")).toHaveCount(3);
   await page.screenshot({ path: shot("landing"), fullPage: true });

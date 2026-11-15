@@ -5,9 +5,9 @@ import { scoreColor } from "../lib/score";
 
 export function Logo() {
   return (
-    <Link to="/" className="brand" aria-label="פורחים - דף הבית">
+    <Link to="/" className="brand" aria-label="AttenGrow - דף הבית">
       <img src="/logo.svg" alt="" width={36} height={36} />
-      <span>פורחים</span>
+      <span>AttenGrow</span>
     </Link>
   );
 }

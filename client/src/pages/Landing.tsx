@@ -13,10 +13,10 @@ export default function Landing() {
     <main className="landing-page">
       <header className="landing-top"><Logo /></header>
       <section className="hero">
-        <h1>פורחים</h1>
+        <h1>AttenGrow</h1>
         <p className="tagline">תתרכזו — ותראו מה צומח</p>
         <p className="hero-text">
-          ללמוד לבד בבית זה קשה — אף אחד לא שם לב כשהמחשבות נודדות. בפורחים כל סשן לימוד שותל זרע, והוא גדל רק בזמן
+          ללמוד לבד בבית זה קשה — אף אחד לא שם לב כשהמחשבות נודדות. ב-AttenGrow כל סשן לימוד שותל זרע, והוא גדל רק בזמן
           שאתם באמת מרוכזים.
         </p>
         <div className="row center">

@@ -25,7 +25,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Bloom API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="AttenGrow API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_credentials=False,
                    allow_methods=["*"], allow_headers=["Authorization", "Content-Type"],
                    expose_headers=["X-Error-Code"])
