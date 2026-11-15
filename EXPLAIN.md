@@ -93,3 +93,20 @@
   - מצלמה בלי פנים: "לא זוהו פנים".
   - מוצר "פורחים" (צמח, תגובה לקשב נמוך, גינה, יומן, פרופיל).
   - חדר עם **שני דפדפנים ושתי מצלמות מדומות**.
+
+## 7. הענן (מטלה 4)
+
+הסקריפט `deploy/deploy.sh` מבצע את הפריסה, ושלבי ההכנה הידניים מוסברים ב-`deploy/README.md`.
+
+```
+https://DOMAIN → IP גלובלי קבוע → HTTPS Load Balancer (תעודה מנוהלת של גוגל)
+     /api/*, /health → Serverless NEG → Cloud Run bloom-server (FastAPI) → MongoDB Atlas
+     כל השאר         → Serverless NEG → Cloud Run bloom-client (nginx + React)
+```
+
+- **Cloud Run**: מריצים את אותם אימג'ים של מטלה 3 בלי לנהל שרתים. כשאין תנועה אין עותקים פעילים (`min-instances=0`), ולכן כמעט אין עלות. מוגבל ל-3 עותקים לכל היותר (`max-instances=3`). השרת stateless וכל המצב שמור ב-Mongo, כך שכל עותק יכול לטפל בכל בקשה.
+- **Load Balancer**: דומיין אחד ותעודת HTTPS אחת. המצלמה בדפדפן עובדת רק ב-HTTPS. מכיוון שהלקוח והשרת יושבים על אותו דומיין, אין צורך ב-CORS. ה-LB מנתב את `/api` לשרת, ולכן ה-proxy של nginx בכלל לא מופעל בענן.
+- **ingress של השרת = `internal-and-cloud-load-balancing`**: אי אפשר לגשת לכתובת ה-run.app של ה-API מהאינטרנט, רק דרך ה-LB.
+- **Secret Manager**: `mongodb-uri` ו-`jwt-secret` מוזרקים כמשתני סביבה עם `--set-secrets`. לחשבון השירות `bloom-run` יש רק הרשאת `secretAccessor` לשני הסודות האלה. אין סודות באימג', ב-git או ב-`--set-env-vars`.
+- **Atlas M0 ו-`0.0.0.0/0`**: ל-Cloud Run אין IP יציאה קבוע. הפשרה: ההגנה היא משתמש DB עם סיסמה חזקה וחיבור TLS. אפשרות מאובטחת יותר, שעולה כסף: VPC connector עם Cloud NAT ו-IP סטטי ברשימת ההיתרים.
+- **No-IP**: רשומת A אחת שמצביעה על ה-IP של ה-LB. צריך לאשר את הדומיין במייל כל 30 יום.
