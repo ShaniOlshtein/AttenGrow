@@ -1,10 +1,10 @@
 # פריסה לענן (מטלה 4)
 
-**התוצאה:** `https://<הדומיין>` → Load Balancer של גוגל עם HTTPS. ה-Load Balancer מעביר את `/api/*` ואת `/health` ל-Cloud Run `bloom-server`, וכל השאר ל-Cloud Run `bloom-client`. מסד הנתונים הוא MongoDB Atlas, והסודות שמורים ב-Secret Manager.
+**התוצאה:** `https://<הדומיין>` → Load Balancer של גוגל עם HTTPS. ה-Load Balancer מעביר את `/api/*` ואת `/health` ל-Cloud Run `attengrow-server`, וכל השאר ל-Cloud Run `attengrow-client`. מסד הנתונים הוא MongoDB Atlas, והסודות שמורים ב-Secret Manager.
 
 **האימג'ים** כבר נמצאים ב-Docker Hub (ציבוריים, linux/amd64), ולא צריך לבנות כלום:
-- `ahuvafogel/bloom-server:1.3`
-- `ahuvafogel/bloom-client:1.3`
+- `ahuvafogel/attengrow-server:1.3`
+- `ahuvafogel/attengrow-client:1.3`
 
 הסקריפט `deploy/deploy.sh` מבצע את כל השלבים בענן. לפניו צריך לעשות ידנית את שלבים 1–4. אפשר להריץ אותו שוב כמה פעמים שרוצים: מה שכבר קיים נשאר, ומה שהשתנה מתעדכן.
 
@@ -50,7 +50,7 @@ GCP_PROJECT_ID=<PROJECT_ID> DOMAIN=attengrow.ddns.net bash deploy/deploy.sh
 בסוף הסקריפט מדפיס:
 - **Load Balancer IP**: אותו מכניסים ב-No-IP כרשומת A, וזו הרשומה **היחידה**.
 - סטטוס התעודה: `PROVISIONING` זה תקין. התעודה מוכנה (`ACTIVE`) עד בערך 60 דקות **אחרי** שה-DNS מצביע על ה-IP.
-- הקובץ `attengrow.json` לתיבת ההגשה. השם שלו זהה ל-`project`.
+- הקובץ `ahuva-shani-michal.json` לתיבת ההגשה. השם שלו זהה ל-`project`.
 
 כך בודקים את סטטוס התעודה:
 ```bash
@@ -82,11 +82,11 @@ python deliver/make_zip.py https://attengrow.ddns.net
 
 לוגים של השרת:
 ```bash
-gcloud run services logs read bloom-server --region europe-west1 --limit 50
+gcloud run services logs read attengrow-server --region europe-west1 --limit 50
 ```
 
 ### עדכון גרסה בעתיד
-בונים ודוחפים אימג' חדש (`docker buildx build --platform linux/amd64 -t ahuvafogel/bloom-server:1.4 --push ./server`), ואז מריצים שוב:
+בונים ודוחפים אימג' חדש (`docker buildx build --platform linux/amd64 -t ahuvafogel/attengrow-server:1.4 --push ./server`), ואז מריצים שוב:
 ```bash
 IMAGE_TAG=1.4 GCP_PROJECT_ID=... DOMAIN=... bash deploy/deploy.sh
 ```

@@ -63,7 +63,7 @@ SECTIONS = [
     ("הרצה", [
         ("run_command", "פקודת הרצה", "ברירת מחדל: docker compose up", "docker compose up"),
         ("setup_notes", "הערות להפעלה", "",
-         "האימג'ים ציבוריים ב-Docker Hub (ahuvafogel/bloom-server, ahuvafogel/bloom-client, linux/amd64) — אין צורך בבנייה. האתר: http://localhost:3000, השרת: http://localhost:8000/health. "
+         "האימג'ים ציבוריים ב-Docker Hub (ahuvafogel/attengrow-server, ahuvafogel/attengrow-client, linux/amd64) — אין צורך בבנייה. האתר: http://localhost:3000, השרת: http://localhost:8000/health. "
          "בפעם הראשונה המודל (~16MB) נטען לדפדפן ונשמר במטמון. האתר עובד בלי GEMINI_API_KEY (לא בשימוש)."
          + (f" גרסת הענן (מטלה 4): {DOMAIN}" if DOMAIN else "")),
     ]),

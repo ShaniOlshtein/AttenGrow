@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # AttenGrow - Assignment 4: deploy to Google Cloud.
 #   https://DOMAIN -> global external HTTPS Load Balancer
-#        /api/*, /health -> Cloud Run "bloom-server" (FastAPI, port 8000)
-#        everything else -> Cloud Run "bloom-client" (nginx + React build, port 3000)
+#        /api/*, /health -> Cloud Run "attengrow-server" (FastAPI, port 8000)
+#        everything else -> Cloud Run "attengrow-client" (nginx + React build, port 3000)
 #   DB = MongoDB Atlas M0, secrets in Secret Manager.
 # Idempotent: safe to run again (existing resources are kept / updated).
-# Usage:  GCP_PROJECT_ID=my-project DOMAIN=bloom.ddns.net bash deploy/deploy.sh
+# Usage:  GCP_PROJECT_ID=my-project DOMAIN=attengrow.ddns.net bash deploy/deploy.sh
 # Manual steps before running (Atlas, No-IP, secret values): see deploy/README.md
 set -euo pipefail
 
@@ -14,22 +14,22 @@ GCP_PROJECT_ID="${GCP_PROJECT_ID:-}"           # e.g. attengrow-123456
 REGION="${REGION:-europe-west1}"
 DOMAIN="${DOMAIN:-}"                           # e.g. attengrow.ddns.net (No-IP hostname, no https://)
 IMAGE_TAG="${IMAGE_TAG:-1.3}"
-SERVER_IMAGE="${SERVER_IMAGE:-docker.io/ahuvafogel/bloom-server:${IMAGE_TAG}}"
-CLIENT_IMAGE="${CLIENT_IMAGE:-docker.io/ahuvafogel/bloom-client:${IMAGE_TAG}}"
+SERVER_IMAGE="${SERVER_IMAGE:-docker.io/ahuvafogel/attengrow-server:${IMAGE_TAG}}"
+CLIENT_IMAGE="${CLIENT_IMAGE:-docker.io/ahuvafogel/attengrow-client:${IMAGE_TAG}}"
 DB_NAME="${DB_NAME:-focusflow}"
-TEAM_ID="${TEAM_ID:-attengrow}"
+TEAM_ID="${TEAM_ID:-ahuva-shani-michal}"
 MEMBERS_JSON='["Shani Olshtein", "Michal David", "Ahuva Fogel"]'
 
-SERVER_SVC=bloom-server
-CLIENT_SVC=bloom-client
-RUN_SA_NAME=bloom-run
-IP_NAME=bloom-ip
-URLMAP=bloom-urlmap
-REDIRECT_URLMAP=bloom-http-redirect
-HTTPS_PROXY=bloom-https-proxy
-HTTP_PROXY=bloom-http-proxy
-FR_HTTPS=bloom-https-fr
-FR_HTTP=bloom-http-fr
+SERVER_SVC=attengrow-server
+CLIENT_SVC=attengrow-client
+RUN_SA_NAME=attengrow-run
+IP_NAME=attengrow-ip
+URLMAP=attengrow-urlmap
+REDIRECT_URLMAP=attengrow-http-redirect
+HTTPS_PROXY=attengrow-https-proxy
+HTTP_PROXY=attengrow-http-proxy
+FR_HTTPS=attengrow-https-fr
+FR_HTTP=attengrow-http-fr
 # ---------------------------------------------
 
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -114,9 +114,9 @@ name: ${URLMAP}
 defaultService: ${BS_BASE}/${CLIENT_SVC}-bs
 hostRules:
 - hosts: ['*']
-  pathMatcher: bloom-paths
+  pathMatcher: attengrow-paths
 pathMatchers:
-- name: bloom-paths
+- name: attengrow-paths
   defaultService: ${BS_BASE}/${CLIENT_SVC}-bs
   pathRules:
   - paths: ['/api/*', '/api', '/health']
@@ -126,7 +126,7 @@ gcloud compute url-maps import "$URLMAP" --global --source="$URLMAP_FILE" --quie
 rm -f "$URLMAP_FILE"
 
 step "Google-managed SSL certificate for $DOMAIN"
-CERT="bloom-cert-$(echo "$DOMAIN" | tr -c 'a-z0-9\n' '-' | cut -c1-50)"
+CERT="attengrow-cert-$(echo "$DOMAIN" | tr -c 'a-z0-9\n' '-' | cut -c1-50)"
 exists gcloud compute ssl-certificates describe "$CERT" --global || \
   gcloud compute ssl-certificates create "$CERT" --global --domains="$DOMAIN"
 
