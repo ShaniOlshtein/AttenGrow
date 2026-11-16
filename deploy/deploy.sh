@@ -51,7 +51,7 @@ step "Enabling APIs (run, compute, secretmanager)"
 gcloud services enable run.googleapis.com compute.googleapis.com secretmanager.googleapis.com
 
 step "Secrets in Secret Manager"
-for s in mongodb-uri jwt-secret; do
+for s in mongodb-uri jwt-secret gemini-api-key; do
   exists gcloud secrets describe "$s" || gcloud secrets create "$s" --replication-policy=automatic
 done
 if ! exists gcloud secrets versions access latest --secret=jwt-secret; then
@@ -65,7 +65,7 @@ exists gcloud secrets versions access latest --secret=mongodb-uri || die "mongod
 step "Service account for Cloud Run + secretAccessor"
 exists gcloud iam service-accounts describe "$RUN_SA" || \
   gcloud iam service-accounts create "$RUN_SA_NAME" --display-name="AttenGrow Cloud Run runtime"
-for s in mongodb-uri jwt-secret; do
+for s in mongodb-uri jwt-secret gemini-api-key; do
   gcloud secrets add-iam-policy-binding "$s" --member="serviceAccount:${RUN_SA}" \
     --role=roles/secretmanager.secretAccessor --condition=None >/dev/null
 done
@@ -76,15 +76,15 @@ gcloud run deploy "$SERVER_SVC" --image="$SERVER_IMAGE" --region="$REGION" --por
   --service-account="$RUN_SA" --allow-unauthenticated \
   --ingress=internal-and-cloud-load-balancing \
   --min-instances=0 --max-instances=3 --cpu=1 --memory=512Mi \
-  --set-secrets="MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest" \
+  --set-secrets="MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest,GEMINI_API_KEY=gemini-api-key:latest" \
   --set-env-vars="DB_NAME=${DB_NAME},CORS_ORIGINS=https://${DOMAIN}" --quiet
 SERVER_URL=$(gcloud run services describe "$SERVER_SVC" --region="$REGION" --format="value(status.url)")
 
 step "Cloud Run: $CLIENT_SVC  ($CLIENT_IMAGE)"
-# nginx needs a resolvable BACKEND_URL; in the cloud the LB sends /api/* to the server before nginx sees it
+# ingress: only the Load Balancer may reach the client (mirrors the server restriction)
 gcloud run deploy "$CLIENT_SVC" --image="$CLIENT_IMAGE" --region="$REGION" --port=3000 \
   --service-account="$RUN_SA" --allow-unauthenticated \
-  --ingress=all \
+  --ingress=internal-and-cloud-load-balancing \
   --min-instances=0 --max-instances=3 --cpu=1 --memory=256Mi \
   --set-env-vars="BACKEND_URL=${SERVER_URL}" --quiet
 

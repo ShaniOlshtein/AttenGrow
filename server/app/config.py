@@ -8,8 +8,10 @@ MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://mongo:27017")
 DB_NAME = os.getenv("DB_NAME", "focusflow")
 JWT_SECRET = os.getenv("JWT_SECRET") or ""
 if not JWT_SECRET:
-    # Only acceptable for a single local instance; production must set JWT_SECRET.
-    log.warning("JWT_SECRET not set - generating an ephemeral secret")
+    if os.getenv("ENVIRONMENT") == "production":
+        raise RuntimeError("JWT_SECRET must be set in production (inject via Secret Manager)")
+    # Local dev only: ephemeral secret is acceptable for a single instance.
+    log.warning("JWT_SECRET not set - generating an ephemeral secret (local dev only)")
     JWT_SECRET = secrets.token_urlsafe(48)
 JWT_ALG = "HS256"
 JWT_EXPIRES_MIN = 60

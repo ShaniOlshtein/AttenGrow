@@ -1,9 +1,11 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from ..db import db
 from ..schemas import DisplayName, Password, user_out
-from ..security import current_user, hash_password, verify_password
+from ..security import current_claims, current_user, hash_password, verify_password
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -41,8 +43,15 @@ async def change_password(body: PasswordIn, user: dict = Depends(current_user)):
 
 
 @router.delete("/me", status_code=204)
-async def delete_me(user: dict = Depends(current_user)):
+async def delete_me(user: dict = Depends(current_user), claims: dict = Depends(current_claims)):
     uid = user["_id"]
+    # Denylist the active token immediately so it cannot be reused after deletion.
+    exp = datetime.fromtimestamp(claims["exp"], tz=UTC)
+    await db.token_denylist.update_one(
+        {"jti": claims["jti"]},
+        {"$setOnInsert": {"jti": claims["jti"], "expires_at": exp}},
+        upsert=True,
+    )
     for coll in ("readings", "sessions", "content"):
         await db[coll].delete_many({"user_id": uid})
     await db.rooms.update_many({"members.user_id": uid}, {"$pull": {"members": {"user_id": uid}}})
