@@ -48,7 +48,7 @@ test("YouTube content: IFrame API player + measurement with video position", asy
   await page.waitForTimeout(15_000);
   await expect(page.getByTestId("score")).toHaveText("—");
   // play in the real YouTube player (IFrame API reports the state change)
-  await page.frameLocator("iframe[src*='youtube']").locator(".ytp-large-play-button").click();
+  await page.frameLocator("iframe[src*='youtube']").getByRole("button", { name: /^(הפעלת הסרטון|Play)/ }).first().click();
   await expect(page.getByTestId("playback-status")).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByTestId("score")).toHaveText(/^(0\.\d\d|1\.00)$/, { timeout: 30_000 });
   await page.getByRole("button", { name: "סיים סשן" }).click();
