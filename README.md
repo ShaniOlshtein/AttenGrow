@@ -1,9 +1,6 @@
 # 🌿 AttenGrow (FocusFlow)
 
-> פלטפורמת למידה ופרודוקטיביות חכמה המבוססת על Full-Stack ובינה מלאכותית (AI). המערכת מודדת את רמת הקשב של המשתמש בזמן אמת דרך מצלמת הרשת, תוך שילוב מטפורה משחקית של צמיחת צמח.
-
-[![סטטוס פריסה](https://img.shields.io/badge/Deployed%20on-Google%20Cloud%20Run-blue?logo=googlecloud)](https://attengrow.servemp3.com)
-[![טכנולוגיות](https://img.shields.io/badge/Stack-React%20%7C%20FastAPI%20%7C%20MongoDB%20%7C%20Docker-green)](https://github.com/ShaniOlshtein/AttenGrow)
+פלטפורמת למידה ופרודוקטיביות חכמה מבוססת Full-Stack ו-AI, המודדת את רמת הקשב של המשתמש בזמן אמת דרך מצלמת הרשת, בשילוב מטפורה משחקית של צמיחת צמח.
 
 ---
 
