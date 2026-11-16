@@ -12,12 +12,12 @@ set -euo pipefail
 # ---------------- variables ----------------
 GCP_PROJECT_ID="${GCP_PROJECT_ID:-}"           # e.g. attengrow-123456
 REGION="${REGION:-europe-west1}"
-DOMAIN="${DOMAIN:-}"                           # e.g. attengrow.ddns.net (No-IP hostname, no https://)
+DOMAIN="${DOMAIN:-attengrow.servemp3.com}"                           # e.g. attengrow.ddns.net (No-IP hostname, no https://)
 IMAGE_TAG="${IMAGE_TAG:-1.3}"
 SERVER_IMAGE="${SERVER_IMAGE:-docker.io/ahuvafogel/attengrow-server:${IMAGE_TAG}}"
 CLIENT_IMAGE="${CLIENT_IMAGE:-docker.io/ahuvafogel/attengrow-client:${IMAGE_TAG}}"
 DB_NAME="${DB_NAME:-focusflow}"
-TEAM_ID="${TEAM_ID:-ahuva-shani-michal}"
+TEAM_ID="${TEAM_ID:-attengrow}"
 MEMBERS_JSON='["Shani Olshtein", "Michal David", "Ahuva Fogel"]'
 
 SERVER_SVC=attengrow-server
