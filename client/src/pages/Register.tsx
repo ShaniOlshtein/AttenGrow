@@ -1,10 +1,12 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
+import { useAuth } from "../auth";
 import { Logo } from "../components/common";
 import { errorMessage, passwordHint } from "../lib/text";
 
 export default function Register() {
+  const { login } = useAuth();
   const nav = useNavigate();
   const [form, setForm] = useState({ email: "", password: "", display_name: "" });
   const [error, setError] = useState("");
@@ -20,8 +22,10 @@ export default function Register() {
     if (form.password.length < 8) return setError("הסיסמה חייבת להכיל לפחות 8 תווים");
     setBusy(true);
     try {
-      await api("/api/auth/register", { method: "POST", body: { ...form, email: form.email.trim() } });
-      nav("/login", { state: { registered: form.email.trim() } });
+      const email = form.email.trim();
+      await api("/api/auth/register", { method: "POST", body: { ...form, email } });
+      await login(email, form.password);
+      nav("/library", { replace: true });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
